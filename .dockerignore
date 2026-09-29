@@ -1,0 +1,7 @@
+# run.sh sends only the files the image needs; this covers a plain `docker build .`
+*
+!Dockerfile
+!requirements.txt
+!urbanseg/
+!models/unet_r34.pt
+**/__pycache__

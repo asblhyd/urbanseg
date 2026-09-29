@@ -1,0 +1,15 @@
+UrbanSeg
+Copyright 2026 The UrbanSeg Authors
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+The repository contains code and a trained model checkpoint only. It does not
+include any imagery, map data or labels. At runtime the software fetches data
+from the third-party services below; that data stays under its own terms:
+
+- Satellite imagery: Google Maps Platform (Maps Static API). Use requires your
+  own API key and is subject to the Google Maps Platform Terms of Service.
+- Map data: (c) OpenStreetMap contributors, available under the Open Database
+  License (ODbL), fetched through public Overpass API instances.
+- Building footprints (optional): Google Open Buildings v3, licensed CC BY 4.0
+  and ODbL (https://sites.research.google/open-buildings/).

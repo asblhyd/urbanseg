@@ -1,0 +1,20 @@
+# secrets
+.env
+
+# everything under data/ is fetched or generated locally, never committed
+data/
+outputs/
+reports/
+*.parquet
+*.csv.gz
+
+# only the released checkpoint is tracked (via Git LFS)
+models/*
+!models/unet_r34.pt
+!models/unet_r34.pt.sha256
+
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.DS_Store

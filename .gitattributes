@@ -1,0 +1,4 @@
+# LF everywhere, so run.sh, the Dockerfile and the checksum file still work
+# after a checkout on Windows
+* text=auto eol=lf
+models/*.pt filter=lfs diff=lfs merge=lfs -text
