@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UrbanSeg</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='7' height='7' fill='%23ffaa00'/%3E%3Crect x='9' width='7' height='7' fill='%23dc2828'/%3E%3Crect y='9' width='7' height='7' fill='%2350c878'/%3E%3Crect x='9' y='9' width='7' height='7' fill='%23787878'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<div class="app">
+  <aside class="panel" aria-label="Controls">
+    <header class="brand">
+      <div class="top">
+        <h1>UrbanSeg</h1>
+        <button type="button" id="theme" class="ghost" aria-label="Switch light or dark theme">◐</button>
+      </div>
+      <p class="sub">Residential, commercial and free land from satellite imagery of Hyderabad</p>
+      <div id="chips" class="chips" aria-live="polite"></div>
+    </header>
+
+    <section class="step" aria-labelledby="h-area">
+      <h2 id="h-area"><span class="step-num">1</span> Choose the area</h2>
+      <div class="tabs" role="tablist" aria-label="How to choose the area">
+        <button type="button" role="tab" data-mode="zone" aria-selected="true">Draw zone</button>
+        <button type="button" role="tab" data-mode="point" aria-selected="false">Point</button>
+        <button type="button" role="tab" data-mode="geojson" aria-selected="false">Import</button>
+        <button type="button" role="tab" data-mode="upload" aria-selected="false">Upload</button>
+      </div>
+
+      <form id="locate-form" class="locate" autocomplete="off">
+        <label for="locate">Go to coordinates or a Google Maps link</label>
+        <div class="row">
+          <input id="locate" placeholder="17.4435, 78.3772">
+          <button type="submit">Go</button>
+        </div>
+        <p class="hint" id="locate-msg"></p>
+      </form>
+
+      <div class="mode" data-mode="zone">
+        <div class="row">
+          <button type="button" id="draw-rect" class="tool" aria-pressed="false">▭ Rectangle</button>
+          <button type="button" id="draw-poly" class="tool" aria-pressed="false">⬠ Polygon</button>
+          <button type="button" id="clear-zone" class="ghost">Clear</button>
+        </div>
+        <p class="hint" id="draw-hint">Rectangle: click two opposite corners. Polygon: click each corner and
+          double-click (or click the first corner) to finish. Drag the white handles to adjust. Esc cancels.</p>
+      </div>
+
+      <div class="mode" data-mode="point" hidden>
+        <p class="hint">Click the map, or use “Go to”, to set the centre.</p>
+        <label for="grid">Area size</label>
+        <select id="grid"></select>
+      </div>
+
+      <div class="mode" data-mode="geojson" hidden>
+        <label for="geojson-file">GeoJSON file with the zone (a polygon)</label>
+        <input type="file" id="geojson-file" accept=".geojson,.json,application/geo+json,application/json">
+        <label for="geojson-text">…or paste GeoJSON</label>
+        <textarea id="geojson-text" rows="3" placeholder='{"type": "Polygon", "coordinates": [[[78.37, 17.44], ...]]}'></textarea>
+        <button type="button" id="geojson-use" class="ghost">Use this zone</button>
+      </div>
+
+      <div class="mode" data-mode="upload" hidden>
+        <label for="upload-file">Image: GeoTIFF, PNG, JPEG or JPEG 2000</label>
+        <input type="file" id="upload-file" accept=".tif,.tiff,.png,.jpg,.jpeg,.webp,.jp2,image/*">
+        <fieldset>
+          <legend>How big is one pixel on the ground?</legend>
+          <label><input type="radio" name="scale" value="georef" checked> The file has coordinates (GeoTIFF / ortho)</label>
+          <label><input type="radio" name="scale" value="screenshot"> It is a Google Maps screenshot</label>
+          <div class="sub-opts" data-for="screenshot" hidden>
+            <label>Zoom level <input type="number" id="up-zoom" min="1" max="23" step="0.5" value="18"></label>
+            <label>Screen
+              <select id="up-dpr">
+                <option value="2">Retina / HiDPI (2×)</option>
+                <option value="1">Standard (1×)</option>
+                <option value="1.5">Windows 150 %</option>
+                <option value="1.25">Windows 125 %</option>
+              </select>
+            </label>
+          </div>
+          <label><input type="radio" name="scale" value="mpp"> I know its resolution</label>
+          <div class="sub-opts" data-for="mpp" hidden>
+            <label>Metres per pixel <input type="number" id="up-mpp" min="0.01" max="2" step="0.01" value="0.30"></label>
+          </div>
+          <label><input type="radio" name="scale" value="unknown"> I don't know (areas will be approximate)</label>
+        </fieldset>
+        <p class="hint">Drone and zoomed-in images are resampled to the 0.29 m/pixel the model was trained on.</p>
+      </div>
+    </section>
+
+    <section class="step" aria-labelledby="h-review">
+      <h2 id="h-review"><span class="step-num">2</span> Review</h2>
+      <div id="plan" class="plan"><span class="muted">Draw a zone or pick a point to see what will be analysed.</span></div>
+      <div class="options">
+        <label class="switch"><input type="checkbox" id="opt-fuse" checked> Use map data (OpenStreetMap, building footprints)</label>
+        <label for="opt-quality">Quality</label>
+        <select id="opt-quality">
+          <option value="standard">Standard</option>
+          <option value="high">High: 8 passes, ~8× slower, about +1.5 points</option>
+        </select>
+        <label for="opt-model" class="model-opt" hidden>Model</label>
+        <select id="opt-model" class="model-opt" hidden></select>
+        <p class="hint model-opt" id="opt-model-about" hidden></p>
+      </div>
+      <button type="button" id="run" class="primary" disabled>Analyse</button>
+    </section>
+
+    <section class="step" id="step-progress" hidden>
+      <div class="progress" aria-hidden="true"><div class="bar" id="bar"></div></div>
+      <div class="row between">
+        <span id="progress-label" role="status" aria-live="polite">Starting…</span>
+        <button type="button" id="cancel" class="ghost">Cancel</button>
+      </div>
+    </section>
+
+    <div id="error" class="error" role="alert" hidden></div>
+
+    <section class="step" id="step-result" hidden aria-labelledby="h-result">
+      <h2 id="h-result"><span class="step-num">3</span> Result</h2>
+      <p class="result-title" id="result-title"></p>
+      <p class="muted small" id="result-meta"></p>
+      <ul class="notes" id="result-notes"></ul>
+      <div class="row between">
+        <div class="seg" id="scope" role="group" aria-label="Statistics for">
+          <button type="button" data-scope="zone" aria-pressed="true">Your zone</button>
+          <button type="button" data-scope="extent" aria-pressed="false">Whole image</button>
+        </div>
+        <select id="unit" aria-label="Area unit" style="width:auto">
+          <option value="m2">m²</option><option value="ha">hectares</option><option value="acres">acres</option>
+          <option value="sq_yd">sq yards</option><option value="guntas">guntas</option>
+        </select>
+      </div>
+      <table class="stats" id="stats"></table>
+
+      <h3>Layers</h3>
+      <div class="layers">
+        <label for="opacity" style="display:block;color:var(--mut);font-size:12px">Opacity</label>
+        <input type="range" id="opacity" min="0" max="1" step="0.05" value="0.6">
+        <div id="class-toggles"></div>
+        <div class="seg" id="version" role="group" aria-label="Result version" style="margin:6px 0">
+          <button type="button" data-ver="fused" aria-pressed="true">With map data</button>
+          <button type="button" data-ver="raw" aria-pressed="false">Model only</button>
+        </div>
+        <label><input type="checkbox" id="lay-lowconf"> Hatch where the model is unsure</label>
+        <label><input type="checkbox" id="lay-imagery"> Show the analysed imagery</label>
+        <label><input type="checkbox" id="lay-outside"> Show results outside the zone</label>
+      </div>
+
+      <h3>Download</h3>
+      <div class="downloads" id="downloads"></div>
+
+      <div id="gold-entry" hidden>
+        <h3>Correct for the gold set</h3>
+        <p class="hint">Fix the classes by hand; saved corrections measure real accuracy.</p>
+        <div class="row">
+          <select id="gold-seed" aria-label="Start from" style="width:auto">
+            <option value="model">Start from the model alone</option>
+            <option value="fused">Start from the result with map data</option>
+          </select>
+          <button type="button" id="gold-correct">Correct…</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="step" id="step-gold" hidden>
+      <h3>Gold set <span class="muted small" id="gold-count"></span></h3>
+      <ul id="gold-list" class="gold-list"></ul>
+    </section>
+
+    <section class="step" id="step-history" hidden>
+      <h3>This session</h3>
+      <ul id="history"></ul>
+    </section>
+
+    <footer class="foot">
+      Imagery © Google · Map data © OpenStreetMap contributors (ODbL) · Building footprints:
+      Google Open Buildings (CC BY 4.0) · Trained on Hyderabad; elsewhere results are indicative ·
+      <a href="https://github.com/asblhyd/urbanseg" target="_blank" rel="noopener">Source</a> ·
+      <a href="/docs" target="_blank" rel="noopener">API</a>
+    </footer>
+  </aside>
+
+  <main class="stage">
+    <div id="map" class="map" role="application" aria-label="Map: draw your zone here"></div>
+    <div id="map-off" class="map-off" hidden>
+      <div>
+        <h2>Map unavailable</h2>
+        <p id="map-off-why"></p>
+        <p>You can still go to coordinates, import a zone or upload an image.</p>
+      </div>
+    </div>
+    <div id="viewer" class="viewer" hidden>
+      <canvas id="viewer-canvas" aria-label="Result image: scroll to zoom, drag to pan"></canvas>
+      <button type="button" id="viewer-close">Close</button>
+    </div>
+    <div id="gold-editor" class="gold-editor" hidden aria-label="Gold-set editor">
+      <div class="gold-bar">
+        <p class="small" id="gold-title"></p>
+        <div class="row wrap">
+          <div class="seg" id="gold-classes" role="group" aria-label="Paint class"></div>
+          <div class="seg" id="gold-tools" role="group" aria-label="Tool">
+            <button type="button" class="tool" data-tool="brush" title="Brush (B)">Brush</button>
+            <button type="button" class="tool" data-tool="fill" title="Fill a region of one class (F)">Fill</button>
+            <button type="button" class="tool" data-tool="pan" title="Pan (H, or hold space, or drag with the right button)">Pan</button>
+          </div>
+          <label class="inline">Brush <input type="range" id="gold-size" min="2" max="120" value="16"></label>
+          <label class="inline">Opacity <input type="range" id="gold-alpha" min="0" max="1" step="0.05" value="0.55"></label>
+          <button type="button" id="gold-undo" title="Undo (Ctrl/Cmd+Z)">Undo</button>
+          <button type="button" id="gold-gaps" title="Give every Unsure pixel the class of its nearest labelled neighbour">Fill unsure from neighbours</button>
+          <button type="button" id="gold-fit">Fit</button>
+        </div>
+        <div class="row wrap">
+          <label class="inline"><input type="checkbox" id="gold-reviewed" checked> I checked all of it (unsure parts painted as Unsure)</label>
+          <input id="gold-note" placeholder="Note (optional)" maxlength="500" style="flex:1;min-width:140px">
+          <button type="button" id="gold-save" class="accent">Save</button>
+          <button type="button" id="gold-close">Close</button>
+        </div>
+        <p class="muted small"><span id="gold-info"></span> · <span id="gold-status" role="status" aria-live="polite"></span></p>
+      </div>
+      <div class="gold-view" id="gold-view" oncontextmenu="return false">
+        <div class="gold-stack" id="gold-stack"><canvas id="gold-img"></canvas><canvas id="gold-lab"></canvas></div>
+      </div>
+    </div>
+    <div id="readout" class="readout" hidden></div>
+    <div id="legend" class="legend" aria-label="Legend"></div>
+  </main>
+</div>
+<script type="module" src="/static/app.js"></script>
+</body>
+</html>

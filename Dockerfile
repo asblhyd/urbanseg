@@ -15,13 +15,15 @@ COPY requirements.txt .
 RUN pip install -r requirements.txt
 
 COPY urbanseg/ urbanseg/
-COPY models/unet_r34.pt models/unet_r34.pt
+# both models stay selectable (URBANSEG_MODEL, or per run in the web app)
+COPY models/unet_r34.pt models/unet_r34_v2.pt models/
 
-# data/osm caches live OSM queries; data/open_buildings is where the optional
-# footprint index is built (mounted as a volume by run.sh)
+# .cache holds live OpenStreetMap answers, data/open_buildings the optional
+# footprint index and data_v2/gold the hand-checked gold set; run.sh mounts
+# them as named volumes so they survive restarts
 RUN useradd --create-home --uid 10001 app \
-    && mkdir -p data/osm data/open_buildings \
-    && chown -R app:app data
+    && mkdir -p data/osm data/open_buildings data_v2/gold .cache/osm_live \
+    && chown -R app:app data data_v2 .cache
 USER app
 
 EXPOSE 8000

@@ -1,10 +1,12 @@
 # Torch CPU wheels come from the extra index; everything else from PyPI.
+# With uv: uv pip install --index-strategy unsafe-best-match -r requirements.txt
 --extra-index-url https://download.pytorch.org/whl/cpu
 torch==2.13.0+cpu ; sys_platform == "linux"
 torchvision==0.28.0+cpu ; sys_platform == "linux"
 torch==2.13.0 ; sys_platform != "linux"
 torchvision==0.28.0 ; sys_platform != "linux"
 segmentation-models-pytorch==0.5.0
+scipy==1.18.1
 rasterio==1.5.1
 geopandas==1.1.4
 shapely==2.1.2

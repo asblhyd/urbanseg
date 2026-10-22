@@ -4,4 +4,5 @@
 !requirements.txt
 !urbanseg/
 !models/unet_r34.pt
+!models/unet_r34_v2.pt
 **/__pycache__

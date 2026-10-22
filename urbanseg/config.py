@@ -18,6 +18,18 @@ PREVIEW_DIR = DATA_DIR / "preview"
 MODELS_DIR = ROOT / "models"
 REPORTS_DIR = ROOT / "reports"
 
+# --- Models ---
+# Trained checkpoints in MODELS_DIR, by id. All stay available: pick one with
+# URBANSEG_MODEL (an id, or a checkpoint path for local use), the "model"
+# field of an API job / the web app, or scripts/segment.py --model.
+MODELS = {
+    "v1": {"file": "unet_r34.pt", "label": "v1 (August 2026)",
+           "about": "trained on the v1 labels: footprints as published, widened by 1.2 m"},
+    "v2": {"file": "unet_r34_v2.pt", "label": "v2 (October 2026)",
+           "about": "trained on roof-aligned v2 labels, with 16 more areas"},
+}
+DEFAULT_MODEL = "v2"
+
 # --- Imagery ---
 ZOOM = 18          # ~0.57 m per map px at Hyderabad latitude
 SCALE = 2          # image px = 2x map px  -> ~0.285 m per image px
@@ -77,6 +89,42 @@ AREAS = [
     ("madhapur",       17.4482, 78.3915, 3, 3, "test"),
     ("begumpet",       17.4440, 78.4661, 3, 3, "test"),
     ("kondapur",       17.4647, 78.3639, 3, 3, "test"),
+]
+
+# --- Version-2 areas (October 2026) ---
+# data/ is the frozen v1 dataset. New areas, and every label version after
+# v1, live in data_v2/ (tiles/, osm/, masks_<version>/), never in data/.
+# The v1 areas are almost all dense; these cover the textures they miss.
+# (name, center_lat, center_lng, grid_nx, grid_ny, split, texture); "test2"
+# areas are held out, one per new texture, and lie at least 2 km from every
+# training area (Hussain Sagar and Jubilee Hills are near the v1 test areas,
+# which are held out too).
+DATA_V2_DIR = ROOT / "data_v2"
+# hand-reviewed gold samples (urbanseg.gold), written by the web app's editor
+GOLD_DIR = Path(os.environ.get("URBANSEG_GOLD_DIR") or DATA_V2_DIR / "gold")
+AREAS_V2 = [
+    ("himayat_sagar",   17.3150, 78.3700, 3, 3, "train", "water"),
+    ("shamirpet",       17.5900, 78.5650, 3, 3, "train", "water"),
+    ("tukkuguda",       17.2050, 78.4800, 3, 3, "train", "plots"),
+    ("ibrahimpatnam",   17.1900, 78.6500, 3, 3, "train", "plots"),
+    ("hayathnagar",     17.3280, 78.6000, 3, 3, "train", "plots"),
+    ("kollur",          17.4600, 78.2560, 3, 3, "train", "plots"),
+    ("bachupally",      17.5450, 78.3820, 3, 3, "train", "plots"),
+    ("village_east",    17.5486, 78.7128, 3, 3, "train", "plots"),
+    ("industry_west",   17.3266, 78.1360, 3, 3, "train", "industry"),
+    ("industry_north",  17.6781, 78.5686, 3, 3, "train", "industry"),
+    ("patancheru",      17.5300, 78.2700, 3, 3, "train", "industry"),
+    ("trimulgherry",    17.4760, 78.5150, 3, 3, "train", "cantonment"),
+    ("sainikpuri",      17.4930, 78.5480, 3, 3, "train", "cantonment"),
+    ("tolichowki",      17.3930, 78.4110, 3, 3, "train", "old_informal"),
+    ("tellapur",        17.4560, 78.2880, 3, 3, "train", "highrise"),
+    ("narsingi",        17.3880, 78.3550, 3, 3, "train", "highrise"),
+    # held out
+    ("hussain_sagar",   17.4240, 78.4740, 3, 3, "test2", "water"),
+    ("jubilee_hills",   17.4310, 78.4070, 3, 3, "test2", "villas"),
+    ("chandrayangutta", 17.3110, 78.4830, 3, 3, "test2", "old_informal"),
+    ("medchal",         17.6300, 78.4800, 3, 3, "test2", "plots"),
+    ("cherlapally",     17.4620, 78.6000, 3, 3, "test2", "industry"),
 ]
 
 # --- OSM classification vocabularies ---

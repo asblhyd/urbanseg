@@ -21,7 +21,9 @@ cd "$(dirname "$0")"
 IMAGE="urbanseg:latest"
 NAME="urbanseg"
 VOLUME="urbanseg-footprints"
-MODEL="models/unet_r34.pt"
+CACHE_VOLUME="urbanseg-cache"   # live OpenStreetMap answers, kept 30 days
+GOLD_VOLUME="urbanseg-gold"     # hand-checked gold samples from the web app's editor
+MODELS=("models/unet_r34.pt" "models/unet_r34_v2.pt")
 HOST="127.0.0.1"
 PORT="${PORT:-5555}"
 NEED_GB_SERVICE=3      # 'Large' requests peak at ~1.5 GB, plus VM/engine overhead
@@ -73,15 +75,17 @@ mem_gb=$(( (mem_bytes + 500000000) / 1000000000 ))
 
 # --- model weights (tracked with Git LFS) ----------------------------------
 say "Checking model weights"
-[ -f "$MODEL" ] || die "$MODEL not found. Clone the repo with Git LFS installed (see README)."
-if head -c 200 "$MODEL" | grep -aq "git-lfs.github.com/spec"; then
-  die "$MODEL is a Git LFS pointer, not the weights. Run: git lfs install && git lfs pull"
-fi
-if command -v sha256sum >/dev/null 2>&1; then
-  sha256sum --check --status "$MODEL.sha256" || die "$MODEL does not match its checksum. Run: git lfs pull"
-elif command -v shasum >/dev/null 2>&1; then
-  shasum -a 256 --check --status "$MODEL.sha256" || die "$MODEL does not match its checksum. Run: git lfs pull"
-fi
+for MODEL in "${MODELS[@]}"; do
+  [ -f "$MODEL" ] || die "$MODEL not found. Clone the repo with Git LFS installed (see README)."
+  if head -c 200 "$MODEL" | grep -aq "git-lfs.github.com/spec"; then
+    die "$MODEL is a Git LFS pointer, not the weights. Run: git lfs install && git lfs pull"
+  fi
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum --check --status "$MODEL.sha256" || die "$MODEL does not match its checksum. Run: git lfs pull"
+  elif command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 --check --status "$MODEL.sha256" || die "$MODEL does not match its checksum. Run: git lfs pull"
+  fi
+done
 echo "ok"
 
 # --- Google Maps key (optional) -------------------------------------------
@@ -105,6 +109,21 @@ fi
 export GOOGLE_MAPS_KEY="${GOOGLE_MAPS_KEY:-}"
 [ -n "$GOOGLE_MAPS_KEY" ] && echo "found" || echo "none: coordinate mode will be disabled"
 
+# optional settings, from the environment or .env (see README: Keys and security)
+env_or_dotenv() {
+  local name="$1" v="${!1:-}"
+  if [ -z "$v" ] && [ -f .env ]; then
+    v="$(sed -n "s/^[[:space:]]*\(export[[:space:]]\{1,\}\)\{0,1\}$name[[:space:]]*=//p" .env \
+      | tail -n 1 | tr -d "\"' \r")"
+  fi
+  printf '%s' "$v"
+}
+GOOGLE_MAPS_BROWSER_KEY="$(env_or_dotenv GOOGLE_MAPS_BROWSER_KEY)"
+URBANSEG_ALLOWED_HOSTS="$(env_or_dotenv URBANSEG_ALLOWED_HOSTS)"
+URBANSEG_MODEL="$(env_or_dotenv URBANSEG_MODEL)"
+URBANSEG_GOLD="$(env_or_dotenv URBANSEG_GOLD)"
+export GOOGLE_MAPS_BROWSER_KEY URBANSEG_ALLOWED_HOSTS URBANSEG_MODEL URBANSEG_GOLD
+
 # --- image ----------------------------------------------------------------
 # Docker Desktop, Docker Engine, Colima etc. build straight from this folder
 # (.dockerignore keeps the context to what the image needs). Snap-packaged
@@ -125,7 +144,7 @@ case "$BUILD_CONTEXT" in
     "${DOCKER[@]}" build -t "$IMAGE" . ;;
   stream)
     COPYFILE_DISABLE=1 tar -czf - --exclude='__pycache__' \
-        Dockerfile requirements.txt urbanseg "$MODEL" \
+        Dockerfile requirements.txt urbanseg "${MODELS[@]}" \
       | "${DOCKER[@]}" build -t "$IMAGE" - ;;
   *)
     die "BUILD_CONTEXT must be 'dir' or 'stream', not '$BUILD_CONTEXT'" ;;
@@ -164,7 +183,13 @@ say "Starting UrbanSeg"
 "${DOCKER[@]}" run -d --name "$NAME" \
     -p "$HOST:$PORT:8000" \
     -e GOOGLE_MAPS_KEY \
+    ${GOOGLE_MAPS_BROWSER_KEY:+-e GOOGLE_MAPS_BROWSER_KEY} \
+    ${URBANSEG_ALLOWED_HOSTS:+-e URBANSEG_ALLOWED_HOSTS} \
+    ${URBANSEG_MODEL:+-e URBANSEG_MODEL} \
+    ${URBANSEG_GOLD:+-e URBANSEG_GOLD} \
     -v "$VOLUME:/app/data/open_buildings" \
+    -v "$CACHE_VOLUME:/app/.cache" \
+    -v "$GOLD_VOLUME:/app/data_v2/gold" \
     --restart unless-stopped \
     "$IMAGE" >/dev/null \
   || die "could not start the container. Is port $PORT already in use? Try: PORT=5556 ./run.sh"
@@ -195,6 +220,7 @@ case "$health" in *'"coordinates_enabled":true'*) coords="enabled" ;;
   *) coords="disabled (no Google Maps key; image upload still works)" ;; esac
 case "$health" in *'"footprint_index":true'*) fps="built" ;;
   *) fps="not built (optional: ./run.sh --with-footprints)" ;; esac
+model="$(printf '%s' "$health" | sed -n 's/.*"model":{"id":"\([^"]*\)".*/\1/p')"
 
 cat <<EOF
 
@@ -202,6 +228,7 @@ UrbanSeg is running:  http://$HOST:$PORT
 
   By coordinates   : $coords
   Footprint index  : $fps
+  Default model    : ${model:-unknown} (both v1 and v2 can be chosen in the app)
 
   Logs: ./run.sh logs      Stop: ./run.sh stop
 EOF

@@ -8,10 +8,15 @@ reports/
 *.parquet
 *.csv.gz
 
-# only the released checkpoint is tracked (via Git LFS)
+# fetched or generated locally (new areas, labels, the gold set)
+data_v2/
+
+# only the released checkpoints are tracked (via Git LFS)
 models/*
 !models/unet_r34.pt
 !models/unet_r34.pt.sha256
+!models/unet_r34_v2.pt
+!models/unet_r34_v2.pt.sha256
 
 __pycache__/
 *.py[cod]
